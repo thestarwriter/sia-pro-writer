@@ -181,7 +181,7 @@ Oi, made something you might find useful — free tool that writes proper profes
 | 500 | £2,495 |
 
 **The security industry in the UK has ~400,000 SIA-licensed individuals.**
-Even 0.1% = 400 subscribers = ~£2,000/month.
+Even 0.1% = 400 subscribers = ~£2,000/month. 
 
 ---
 
