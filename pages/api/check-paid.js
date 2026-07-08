@@ -1,4 +1,4 @@
-import { isPaidEmail } from "./webhook";
+import { isPaidEmail, getFreeUsage } from "./webhook";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -9,7 +9,10 @@ export default async function handler(req, res) {
   }
 
   const normalized = email.trim().toLowerCase();
-  const isPaid = await isPaidEmail(normalized);
+  const [isPaid, freeUsage] = await Promise.all([
+    isPaidEmail(normalized),
+    getFreeUsage(normalized),
+  ]);
 
-  return res.status(200).json({ isPaid });
+  return res.status(200).json({ isPaid, freeUsage });
 }

@@ -24,6 +24,20 @@ export async function isPaidEmail(email) {
   return data.result === "1";
 }
 
+export async function getFreeUsage(email) {
+  const res = await fetch(`${REDIS_URL}/get/free:${encodeURIComponent(email)}`, {
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  });
+  const data = await res.json();
+  return parseInt(data.result || "0", 10);
+}
+
+export async function incrementFreeUsage(email) {
+  await fetch(`${REDIS_URL}/incr/free:${encodeURIComponent(email)}`, {
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  });
+}
+
 function verifySignature(rawBody, signature) {
   const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
   const hmac = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");

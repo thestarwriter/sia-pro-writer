@@ -1,4 +1,4 @@
-import { isPaidEmail } from "./webhook";
+import { isPaidEmail, getFreeUsage, incrementFreeUsage } from "./webhook";
 
 const SYSTEM_PROMPTS = {
   incident: `You are an expert security report writer. Convert the rough notes below into a formal, professional Incident Report. Use clear paragraphs with these sections: INCIDENT DETAILS, DESCRIPTION OF EVENTS, ACTIONS TAKEN, OUTCOME. Use past tense, third person where appropriate, precise language. Include Officer Name, Date/Time, Location if provided. Keep it factual, legally appropriate, and professional — suitable for submission to management or police.`,
@@ -9,15 +9,6 @@ const SYSTEM_PROMPTS = {
 };
 
 const FREE_LIMIT = 3;
-const usageStore = new Map();
-
-function getClientId(req) {
-  return (
-    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-    req.socket?.remoteAddress ||
-    "unknown"
-  );
-}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -26,22 +17,24 @@ export default async function handler(req, res) {
 
   if (!roughNotes?.trim()) return res.status(400).json({ error: "Rough notes are required." });
   if (!SYSTEM_PROMPTS[reportType]) return res.status(400).json({ error: "Invalid report type." });
+  if (!email?.trim()) return res.status(400).json({ error: "Email is required." });
 
-  // Verify paid status server-side
-  const normalizedEmail = (email || "").trim().toLowerCase();
-  const isPaid = normalizedEmail ? await isPaidEmail(normalizedEmail) : false;
+  const normalizedEmail = email.trim().toLowerCase();
 
-  // Free tier enforcement
+  // Check paid status first
+  const isPaid = await isPaidEmail(normalizedEmail);
+
+  // If not paid, check and enforce free limit via Upstash
   if (!isPaid) {
-    const clientId = getClientId(req);
-    const used = usageStore.get(clientId) || 0;
+    const used = await getFreeUsage(normalizedEmail);
     if (used >= FREE_LIMIT) {
       return res.status(402).json({
         error: "free_limit_reached",
         message: `You've used your ${FREE_LIMIT} free reports. Upgrade to Unlimited for unlimited reports.`,
       });
     }
-    usageStore.set(clientId, used + 1);
+    // Increment usage before generating (prevents abuse on slow connections)
+    await incrementFreeUsage(normalizedEmail);
   }
 
   const meta = [
