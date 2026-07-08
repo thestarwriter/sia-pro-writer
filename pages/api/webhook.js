@@ -1,26 +1,36 @@
 // pages/api/webhook.js
-// Lemon Squeezy calls this URL when someone subscribes or cancels.
-// Set this as your webhook URL in Lemon Squeezy dashboard:
-// https://your-domain.com/api/webhook
-
 import crypto from "crypto";
 
-// Simple in-memory paid users store.
-// In production, use Vercel KV or a database.
-export const paidEmails = new Set();
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+export async function addPaidEmail(email) {
+  await fetch(`${REDIS_URL}/set/paid:${encodeURIComponent(email)}/1`, {
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  });
+}
+
+export async function removePaidEmail(email) {
+  await fetch(`${REDIS_URL}/del/paid:${encodeURIComponent(email)}`, {
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  });
+}
+
+export async function isPaidEmail(email) {
+  const res = await fetch(`${REDIS_URL}/get/paid:${encodeURIComponent(email)}`, {
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  });
+  const data = await res.json();
+  return data.result === "1";
+}
 
 function verifySignature(rawBody, signature) {
   const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
-  const hmac = crypto
-    .createHmac("sha256", secret)
-    .update(rawBody)
-    .digest("hex");
+  const hmac = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
   return hmac === signature;
 }
 
-export const config = {
-  api: { bodyParser: false },
-};
+export const config = { api: { bodyParser: false } };
 
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -48,19 +58,12 @@ export default async function handler(req, res) {
 
   console.log(`Webhook received: ${eventName} for ${email}`);
 
-  if (
-    eventName === "subscription_created" ||
-    eventName === "subscription_resumed" ||
-    eventName === "order_created"
-  ) {
-    if (email) paidEmails.add(email.toLowerCase());
+  if (["subscription_created", "subscription_resumed", "order_created"].includes(eventName)) {
+    if (email) await addPaidEmail(email.toLowerCase());
   }
 
-  if (
-    eventName === "subscription_cancelled" ||
-    eventName === "subscription_expired"
-  ) {
-    if (email) paidEmails.delete(email.toLowerCase());
+  if (["subscription_cancelled", "subscription_expired"].includes(eventName)) {
+    if (email) await removePaidEmail(email.toLowerCase());
   }
 
   res.status(200).json({ received: true });

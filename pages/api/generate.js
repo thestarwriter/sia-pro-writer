@@ -1,5 +1,4 @@
-// pages/api/generate.js
-// This runs server-side on Vercel — your API key is NEVER exposed to the browser.
+import { isPaidEmail } from "./webhook";
 
 const SYSTEM_PROMPTS = {
   incident: `You are an expert security report writer. Convert the rough notes below into a formal, professional Incident Report. Use clear paragraphs with these sections: INCIDENT DETAILS, DESCRIPTION OF EVENTS, ACTIONS TAKEN, OUTCOME. Use past tense, third person where appropriate, precise language. Include Officer Name, Date/Time, Location if provided. Keep it factual, legally appropriate, and professional — suitable for submission to management or police.`,
@@ -10,13 +9,9 @@ const SYSTEM_PROMPTS = {
 };
 
 const FREE_LIMIT = 3;
-
-// Simple in-memory store for free usage tracking (resets on server restart).
-// For production, replace with Vercel KV or Upstash Redis for persistence.
 const usageStore = new Map();
 
 function getClientId(req) {
-  // Use IP address as a simple anonymous identifier for free tier
   return (
     req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
     req.socket?.remoteAddress ||
@@ -25,47 +20,38 @@ function getClientId(req) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { roughNotes, reportType, officerName, location, dateTime, isPaid } = req.body;
+  const { roughNotes, reportType, officerName, location, dateTime, email } = req.body;
 
-  if (!roughNotes?.trim()) {
-    return res.status(400).json({ error: "Rough notes are required." });
-  }
+  if (!roughNotes?.trim()) return res.status(400).json({ error: "Rough notes are required." });
+  if (!SYSTEM_PROMPTS[reportType]) return res.status(400).json({ error: "Invalid report type." });
 
-  if (!SYSTEM_PROMPTS[reportType]) {
-    return res.status(400).json({ error: "Invalid report type." });
-  }
+  // Verify paid status server-side
+  const normalizedEmail = (email || "").trim().toLowerCase();
+  const isPaid = normalizedEmail ? await isPaidEmail(normalizedEmail) : false;
 
-  // --- Free tier enforcement ---
+  // Free tier enforcement
   if (!isPaid) {
     const clientId = getClientId(req);
     const used = usageStore.get(clientId) || 0;
-
     if (used >= FREE_LIMIT) {
       return res.status(402).json({
         error: "free_limit_reached",
-        message: `You've used your ${FREE_LIMIT} free reports. Upgrade to Pro for unlimited reports.`,
+        message: `You've used your ${FREE_LIMIT} free reports. Upgrade to Unlimited for unlimited reports.`,
       });
     }
-
     usageStore.set(clientId, used + 1);
   }
 
-  // --- Build prompt ---
   const meta = [
     officerName && `Officer: ${officerName}`,
     location && `Location: ${location}`,
     dateTime && `Date/Time: ${dateTime}`,
-  ]
-    .filter(Boolean)
-    .join(" | ");
+  ].filter(Boolean).join(" | ");
 
   const userContent = `${meta ? meta + "\n\n" : ""}Rough notes:\n${roughNotes}`;
 
-  // --- Stream from Anthropic ---
   try {
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -75,7 +61,7 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+        model: "claude-sonnet-4-6",
         max_tokens: 1000,
         stream: true,
         system: SYSTEM_PROMPTS[reportType],
@@ -89,7 +75,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "AI service error. Please try again." });
     }
 
-    // Pass the stream straight through to the client
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -106,8 +91,6 @@ export default async function handler(req, res) {
     res.end();
   } catch (err) {
     console.error("Generate error:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Something went wrong. Please try again." });
-    }
+    if (!res.headersSent) res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 }

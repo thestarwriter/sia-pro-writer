@@ -54,22 +54,64 @@ export default function App() {
   const [score, setScore] = useState(0);
   const [usedCount, setUsedCount] = useState(0);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [isPaid] = useState(false); // In production: check from session/cookie after Lemon Squeezy webhook
+  const [email, setEmail] = useState("");
+  const [isPaid, setIsPaid] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [paywallEmailInput, setPaywallEmailInput] = useState("");
   const outputRef = useRef("");
 
   useEffect(() => {
     const saved = parseInt(localStorage.getItem("sia_used") || "0");
     setUsedCount(saved);
+    const savedEmail = localStorage.getItem("sia_email");
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setEmailInput(savedEmail);
+      verifyEmail(savedEmail);
+    }
   }, []);
 
   useEffect(() => {
     setScore(getScore(output));
   }, [output]);
 
+  async function verifyEmail(emailToCheck) {
+    setCheckingEmail(true);
+    try {
+      const res = await fetch("/api/check-paid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailToCheck }),
+      });
+      const data = await res.json();
+      setIsPaid(!!data.isPaid);
+    } catch {
+      setIsPaid(false);
+    } finally {
+      setCheckingEmail(false);
+    }
+  }
+
+  async function handleEmailSubmit() {
+    const trimmed = emailInput.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+    setEmailError("");
+    setEmail(trimmed);
+    localStorage.setItem("sia_email", trimmed);
+    await verifyEmail(trimmed);
+    setShowEmailModal(false);
+    setShowPaywall(false);
+  }
+
   async function generateReport() {
     if (!roughNotes.trim()) return;
 
-    // Check free limit
     if (!isPaid && usedCount >= FREE_LIMIT) {
       setShowPaywall(true);
       return;
@@ -84,10 +126,9 @@ export default function App() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roughNotes, reportType, officerName, location, dateTime, isPaid }),
+        body: JSON.stringify({ roughNotes, reportType, officerName, location, dateTime, email }),
       });
 
-      // Handle free limit from server
       if (res.status === 402) {
         setShowPaywall(true);
         setStreaming(false);
@@ -99,12 +140,10 @@ export default function App() {
         throw new Error(data.error || "Something went wrong.");
       }
 
-      // Increment local usage count
       const newCount = usedCount + 1;
       setUsedCount(newCount);
       localStorage.setItem("sia_used", newCount.toString());
 
-      // Stream response
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
 
@@ -157,13 +196,18 @@ export default function App() {
 
         .app { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
 
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid #21262d; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid #21262d; flex-wrap: wrap; gap: 12px; }
         .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.3px; text-decoration: none; color: #e6edf3; }
         .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #1f6feb, #388bfd); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
 
-        .usage-pill { font-size: 12px; color: #8b949e; background: #161b22; border: 1px solid #30363d; padding: 5px 12px; border-radius: 20px; font-family: 'JetBrains Mono', monospace; }
+        .usage-pill { font-size: 12px; color: #8b949e; background: #161b22; border: 1px solid #30363d; padding: 5px 12px; border-radius: 20px; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
         .usage-pill.warn { color: #d29922; border-color: rgba(210,153,34,0.3); }
         .usage-pill.out { color: #f85149; border-color: rgba(248,81,73,0.3); }
+        .usage-pill.unlimited { color: #3fb950; border-color: rgba(63,185,80,0.3); }
+
+        .already-paid-btn { background: none; border: none; color: #8b949e; font-size: 12px; font-family: inherit; cursor: pointer; text-decoration: underline; padding: 0; white-space: nowrap; }
+        .already-paid-btn:hover { color: #c9d1d9; }
 
         .tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
         .tab { padding: 8px 14px; border-radius: 6px; border: 1px solid #30363d; background: #161b22; color: #8b949e; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.15s; }
@@ -209,19 +253,28 @@ export default function App() {
 
         .error-box { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.25); border-radius: 8px; padding: 12px 16px; color: #f85149; font-size: 13px; margin-top: 14px; }
 
-        /* Paywall modal */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+        /* Modals */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
         .modal { background: #161b22; border: 1px solid #30363d; border-radius: 16px; padding: 36px; max-width: 420px; width: 100%; text-align: center; }
         .modal-icon { font-size: 40px; margin-bottom: 16px; }
-        .modal-title { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 10px; }
-        .modal-desc { font-size: 14px; color: #8b949e; line-height: 1.65; margin-bottom: 28px; }
+        .modal-title { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 10px; color: #e6edf3; }
+        .modal-desc { font-size: 14px; color: #8b949e; line-height: 1.65; margin-bottom: 24px; }
         .modal-price { font-size: 32px; font-weight: 800; color: #e6edf3; margin-bottom: 4px; }
-        .modal-per { font-size: 13px; color: #8b949e; margin-bottom: 24px; }
-        .modal-features { list-style: none; text-align: left; margin-bottom: 28px; padding: 0 8px; }
+        .modal-per { font-size: 13px; color: #8b949e; margin-bottom: 20px; }
+        .modal-features { list-style: none; text-align: left; margin-bottom: 24px; padding: 0 8px; }
         .modal-feature { font-size: 13px; color: #c9d1d9; padding: 5px 0; display: flex; gap: 8px; }
-        .modal-feature-check { color: #3fb950; }
-        .modal-upgrade-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #1f6feb, #388bfd); border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; margin-bottom: 12px; }
-        .modal-dismiss { width: 100%; padding: 11px; background: transparent; border: 1px solid #30363d; border-radius: 10px; color: #8b949e; font-size: 14px; font-family: inherit; cursor: pointer; }
+        .modal-feature-check { color: #3fb950; flex-shrink: 0; }
+        .modal-email-input { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #e6edf3; font-size: 14px; font-family: inherit; padding: 12px 14px; outline: none; margin-bottom: 12px; transition: border-color 0.15s; }
+        .modal-email-input:focus { border-color: #388bfd; }
+        .modal-email-input::placeholder { color: #484f58; }
+        .modal-email-error { color: #f85149; font-size: 12px; margin: -6px 0 12px; text-align: left; }
+        .modal-upgrade-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #1f6feb, #388bfd); border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; margin-bottom: 12px; transition: opacity 0.15s; }
+        .modal-upgrade-btn:hover:not(:disabled) { opacity: 0.9; }
+        .modal-upgrade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .modal-dismiss { width: 100%; padding: 11px; background: transparent; border: 1px solid #30363d; border-radius: 10px; color: #8b949e; font-size: 14px; font-family: inherit; cursor: pointer; transition: border-color 0.15s; }
+        .modal-dismiss:hover { border-color: #8b949e; color: #c9d1d9; }
+        .modal-link-row { margin-top: 16px; font-size: 13px; color: #8b949e; }
+        .modal-link-btn { background: none; border: none; color: #388bfd; font-size: 13px; font-family: inherit; cursor: pointer; text-decoration: underline; padding: 0; }
 
         .footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid #21262d; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #484f58; flex-wrap: wrap; gap: 8px; }
         .footer a { color: #484f58; text-decoration: none; }
@@ -233,10 +286,10 @@ export default function App() {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-icon">🛡️</div>
-            <div className="modal-title">Upgrade to Pro</div>
+            <div className="modal-title">Upgrade to Unlimited</div>
             <div className="modal-desc">
-              You've used your 3 free reports this month.<br />
-              Unlock unlimited reports with Pro.
+              You've used your 3 free reports.<br />
+              Unlock unlimited reports with SIA Pro Writer Unlimited.
             </div>
             <div className="modal-price">£4.99</div>
             <div className="modal-per">per month · cancel anytime</div>
@@ -247,11 +300,71 @@ export default function App() {
                 </li>
               ))}
             </ul>
-            <a href={LEMON_URL} target="_blank" rel="noopener noreferrer">
+            <input
+              className="modal-email-input"
+              type="email"
+              placeholder="Your email address (for checkout)"
+              value={paywallEmailInput}
+              onChange={(e) => setPaywallEmailInput(e.target.value)}
+            />
+            <a
+              href={paywallEmailInput.trim()
+                ? `${LEMON_URL}?checkout[email]=${encodeURIComponent(paywallEmailInput.trim())}`
+                : LEMON_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                if (paywallEmailInput.trim()) {
+                  const e = paywallEmailInput.trim().toLowerCase();
+                  localStorage.setItem("sia_email", e);
+                  setEmail(e);
+                  setEmailInput(e);
+                }
+              }}
+            >
               <button className="modal-upgrade-btn">Upgrade now →</button>
             </a>
             <button className="modal-dismiss" onClick={() => setShowPaywall(false)}>
               Maybe later
+            </button>
+            <div className="modal-link-row">
+              Already upgraded?{" "}
+              <button className="modal-link-btn" onClick={() => { setShowPaywall(false); setShowEmailModal(true); }}>
+                Enter your email to unlock
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email entry modal — for returning subscribers */}
+      {showEmailModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-icon">✉️</div>
+            <div className="modal-title">Unlock Unlimited</div>
+            <div className="modal-desc">
+              Enter the email address you used when you subscribed and we'll unlock unlimited reports for you.
+            </div>
+            <input
+              className="modal-email-input"
+              type="email"
+              placeholder="your@email.com"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleEmailSubmit()}
+              autoFocus
+            />
+            {emailError && <div className="modal-email-error">{emailError}</div>}
+            <button
+              className="modal-upgrade-btn"
+              onClick={handleEmailSubmit}
+              disabled={checkingEmail}
+            >
+              {checkingEmail ? "Checking…" : "Unlock my account →"}
+            </button>
+            <button className="modal-dismiss" onClick={() => { setShowEmailModal(false); setEmailError(""); }}>
+              Cancel
             </button>
           </div>
         </div>
@@ -263,18 +376,26 @@ export default function App() {
             <div className="logo-icon">🛡️</div>
             SIA Pro Writer
           </Link>
-          {!isPaid && (
-            <div className={`usage-pill${reportsLeft === 0 ? " out" : reportsLeft === 1 ? " warn" : ""}`}>
-              {reportsLeft === 0
-                ? "0 free reports left"
-                : `${reportsLeft} free report${reportsLeft !== 1 ? "s" : ""} left`}
-            </div>
-          )}
-          {isPaid && (
-            <div className="usage-pill" style={{ color: "#3fb950", borderColor: "rgba(63,185,80,0.3)" }}>
-              ✓ Pro
-            </div>
-          )}
+          <div className="header-right">
+            {checkingEmail && (
+              <div className="usage-pill">Checking…</div>
+            )}
+            {!checkingEmail && isPaid && (
+              <div className="usage-pill unlimited">✓ Unlimited</div>
+            )}
+            {!checkingEmail && !isPaid && (
+              <>
+                <button className="already-paid-btn" onClick={() => setShowEmailModal(true)}>
+                  Already subscribed?
+                </button>
+                <div className={`usage-pill${reportsLeft === 0 ? " out" : reportsLeft === 1 ? " warn" : ""}`}>
+                  {reportsLeft === 0
+                    ? "0 free reports left"
+                    : `${reportsLeft} free report${reportsLeft !== 1 ? "s" : ""} left`}
+                </div>
+              </>
+            )}
+          </div>
         </header>
 
         <div className="tabs">
