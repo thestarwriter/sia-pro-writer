@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://www.siaprowriter.co.uk/sitemap.xml

@@ -1,5 +1,4 @@
-// pages/index.js
-import Head from "next/head";
+import SeoHead from "../components/SeoHead";
 import Link from "next/link";
 
 const S = {
@@ -60,13 +59,11 @@ const S = {
 export default function Landing() {
   return (
     <>
-      <Head>
-        <title>SIA Pro Writer — Professional Report Generator for Security Officers</title>
-        <meta name="description" content="Turn rough security notes into professional incident reports in seconds. Built for SIA-licensed door staff and security officers." />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-      </Head>
+      <SeoHead
+        title="SIA Pro Writer — Professional Report Generator for Security Officers"
+        description="Turn rough security notes into professional incident reports in seconds. Built for SIA-licensed door staff and security officers."
+        path="/"
+      />
 
       <div style={S.page}>
         <nav style={S.nav}>
@@ -185,20 +182,22 @@ Security personnel intervened to separate the subjects. Police were contacted an
         </section>
 
         <section style={S.proof}>
-          <div style={S.sectionLabel}>Early users</div>
-          <h2 style={S.sectionTitle}>Door staff love it</h2>
-          <div style={S.proofGrid}>
-            {[
-              { text: "Used to dread writing up incidents at the end of a long shift. This takes 30 seconds now and my manager said my reports have never been better.", author: "Door Supervisor, London" },
-              { text: "Got pulled up on my handover notes last year. Started using this and the venue manager actually commented on how professional they'd become.", author: "Security Officer, Manchester" },
-              { text: "Going for a supervisor role and needed my paperwork to look the part. This makes me sound like I've been writing reports for 20 years.", author: "SIA Door Supervisor, Birmingham" },
-            ].map((p, i) => (
-              <div key={i} style={S.proofCard}>
-                <div style={S.proofStars}>★★★★★</div>
-                <div style={S.proofText}>"{p.text}"</div>
-                <div style={S.proofAuthor}>{p.author}</div>
-              </div>
-            ))}
+          <div style={S.sectionLabel}>Why I built this</div>
+          <h2 style={S.sectionTitle}>From someone who's worked the door</h2>
+          <div style={{...S.proofCard, maxWidth: 640, margin: "0 auto", padding: "32px"}}>
+            <p style={{fontSize: 15, color: "#c9d1d9", lineHeight: 1.75, marginBottom: 16}}>
+              I've spent time working in security operations, and one thing always
+              stood out: the gap between how good someone is at the actual job, and
+              how professional their paperwork looks. Reports that took 30 minutes to
+              write and still didn't hold up. Handover notes that missed crucial
+              details.
+            </p>
+            <p style={{fontSize: 15, color: "#c9d1d9", lineHeight: 1.75, marginBottom: 0}}>
+              It's not a skills problem — it's a writing problem. So I built SIA Pro
+              Writer to close that gap. It's early days and I'm actively improving it
+              based on feedback from people who actually use it on shift — if you've
+              got thoughts, I'd genuinely like to hear them.
+            </p>
           </div>
         </section>
 
@@ -206,6 +205,9 @@ Security personnel intervened to separate the subjects. Police were contacted an
           <div>© 2025 SIA Pro Writer · Built for security professionals</div>
           <div style={{ display: "flex", gap: 20 }}>
             <Link href="/app" style={{ color: "#8b949e" }}>App</Link>
+            <Link href="/support" style={{ color: "#8b949e" }}>Support</Link>
+            <Link href="/privacy" style={{ color: "#8b949e" }}>Privacy</Link>
+            <Link href="/terms" style={{ color: "#8b949e" }}>Terms</Link>
             <a href="mailto:hello@siaprowriter.co.uk" style={{ color: "#8b949e" }}>Contact</a>
           </div>
         </footer>

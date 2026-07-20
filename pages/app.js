@@ -1,5 +1,5 @@
 // pages/app.js
-import Head from "next/head";
+import SeoHead from "../components/SeoHead";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 
@@ -238,11 +238,12 @@ export default function App() {
 
   return (
     <>
-      <Head>
-        <title>SIA Pro Writer — Write Your Report</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-      </Head>
+      <SeoHead
+        title="Write Your Report — SIA Pro Writer"
+        description="Generate a professional security report from your rough notes in seconds."
+        path="/app"
+        noindex
+      />
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -286,6 +287,12 @@ export default function App() {
         .generate-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #1f6feb, #388bfd); border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; margin-top: 16px; transition: opacity 0.15s, transform 0.1s; }
         .generate-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
         .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .disclaimer { display: flex; gap: 10px; align-items: flex-start; background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 12px 14px; margin-top: 4px; }
+        .disclaimer-icon { font-size: 15px; line-height: 1.5; flex-shrink: 0; }
+        .disclaimer-text { font-size: 12.5px; color: #8b949e; line-height: 1.6; }
+        .disclaimer-text a { color: #8b949e; text-decoration: underline; }
+        .disclaimer-text a:hover { color: #c9d1d9; }
 
         /* Output */
         .output-section { margin-top: 32px; animation: fadeIn 0.3s ease; }
@@ -418,6 +425,9 @@ export default function App() {
                 Enter your email to unlock
               </button>
             </div>
+            <div className="modal-link-row">
+              Trouble with your account? <Link href="/support" className="modal-link-btn" style={{textDecoration:"underline"}}>Get help</Link>
+            </div>
           </div>
         </div>
       )}
@@ -524,6 +534,15 @@ export default function App() {
           />
         </div>
 
+        <div className="disclaimer">
+          <span className="disclaimer-icon">⚠️</span>
+          <span className="disclaimer-text">
+            You're responsible for checking this report is accurate, complete, and
+            meets your employer's requirements before submitting it to anyone. See
+            our <Link href="/terms">Terms</Link> for details.
+          </span>
+        </div>
+
         <button
           className="generate-btn"
           onClick={generateReport}
@@ -562,7 +581,12 @@ export default function App() {
 
         <footer className="footer">
           <span>SIA Pro Writer · Built for security professionals</span>
-          <Link href="/">← Back to home</Link>
+          <div style={{ display: "flex", gap: 16 }}>
+            <Link href="/support">Need help?</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
+            <Link href="/">← Back to home</Link>
+          </div>
         </footer>
       </div>
     </>
